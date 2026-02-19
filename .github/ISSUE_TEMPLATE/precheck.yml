@@ -1,0 +1,26 @@
+name: CEUR Precheck Submission
+description: Upload your CEUR paper PDF for technical validation.
+title: "CEUR Precheck: <Your Paper Title>"
+labels: ["precheck"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## CEUR Preflight Submission
+
+        Please drag and drop your **.pdf** file below.
+
+        After submission:
+        - The CEUR validation will run automatically.
+        - Results will appear in this Issue.
+        - The Issue will close automatically after processing.
+        - If you revise your paper, open a new Issue.
+  - type: textarea
+    id: upload
+    attributes:
+      label: Upload your PDF here
+      description: Drag and drop your .pdf file into this box.
+      placeholder: Attach PDF below
+    validations:
+      required: true

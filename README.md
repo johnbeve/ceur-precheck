@@ -10,20 +10,29 @@ Your uploaded PDF is automatically deleted after checking.
 
 # How To Use
 
-## Step 1 — Upload Your Paper
+## Step 0 - Log in to GitHub
 
-1. Click **Add file → Upload files**
-2. Upload your `.pdf` file
-3. Enter a short commit title (e.g., "John's CEUR paper")
-4. Click **Commit changes direclty to main**
+1. If you have a GitHub account, log in
+2. Otherwise, create a GitHub account [here](https://github.com/), then log in
+
+## Step 1 — Open an Issue and Submit Your Paper
+
+1. Click the **Issues** tab.
+2. Click **New Issue**.
+3. Select **CEUR Precheck Submission**.
+4. Drag and drop your `.pdf` file into the upload box.
+5. Click **Submit new issue**.
 
 ---
 
-## Step 2 — Run the Check
+## Step 2 — Wait for the Check
 
-1. Click the **Actions** tab at the top of the repository.
-2. Click the job with the commit title you provided (usually named at the top).
-4. Wait for the workflow to complete (this usually takes 1–2 minutes).
+After submitting the issue:
+
+- The CEUR validation workflow will run automatically.
+- This usually takes 1–2 minutes.
+
+You can click the **Actions** tab to monitor progress, or simply refresh the Issue page.
 
 ---
 
@@ -70,7 +79,7 @@ The text immediately below the error explains what must be fixed.
 If there are errors:
 
 1. Fix the issue(s) in your paper.
-2. Return to **Step 1**.
+2. Return to **Step 1** and note that you will need to open a new Issue and upload the updated PDF; issues are automatically closed after runs.
 3. Run the check again.
 
 Repeat until all sections report:

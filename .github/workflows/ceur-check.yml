@@ -1,74 +1,93 @@
 name: CEUR PRECHECK
 
 on:
-  push:
+  issues:
+    types: [opened, labeled]
 
 jobs:
   ceur-precheck:
-    name: CEUR PRECHECK
+    if: contains(github.event.issue.labels.*.name, 'precheck')
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      issues: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            python3-pdfminer \
-            poppler-utils \
-            perl
+          sudo apt-get install -y python3-pdfminer poppler-utils perl
 
-      - name: Make scripts executable
+      - name: Extract PDF from issue
         run: |
-          chmod +x check-pdf-errors
-          if [ -f check-columns ]; then chmod +x check-columns; fi
-          if [ -f check-libbyhead.py ]; then chmod +x check-libbyhead.py; fi
+          BODY="${{ github.event.issue.body }}"
+          URL=$(echo "$BODY" | grep -o 'https://[^ ]*\.pdf')
 
-      - name: Run CEUR checks
-        id: run_checks
-        run: |
-          set +e
-
-          OUTPUT=$(./check-pdf-errors 2>&1)
-
-          # Print to raw logs
-          echo "$OUTPUT"
-
-          # Write clean report to Summary tab
-          echo "## CEUR PRECHECK REPORT" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$OUTPUT" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-          if echo "$OUTPUT" | grep -q "^ERROR:"; then
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "❌ **CEUR PRECHECK FAILED**" >> $GITHUB_STEP_SUMMARY
-              exit 1
+          if [ -z "$URL" ]; then
+            echo "No PDF attachment found."
+            exit 1
           fi
 
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**CEUR PRECHECK REPORT END**" >> $GITHUB_STEP_SUMMARY
+          curl -L "$URL" -o submission.pdf
 
-      # -----------------------------------------
-      # Always delete uploaded PDFs
-      # -----------------------------------------
-      - name: Delete uploaded PDFs
-        if: always()
-        run: rm -f *.pdf
+      - name: Make CEUR script executable
+        run: chmod +x check-pdf-errors
 
-      - name: Commit cleanup
-        if: always()
+      - name: Run CEUR validation
+        id: run_check
         run: |
-          git config user.name "ceur-bot"
-          git config user.email "ceur-bot@users.noreply.github.com"
-          git add -A
-          git commit -m "Auto-delete uploaded PDF after CEUR check" || echo "Nothing to commit"
-          git push
+          set +e
+          OUTPUT=$(./check-pdf-errors 2>&1)
+          echo "$OUTPUT" > result.txt
+
+          if echo "$OUTPUT" | grep -q "^ERROR:"; then
+            echo "status=fail" >> $GITHUB_OUTPUT
+          else
+            echo "status=pass" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post results to Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('result.txt', 'utf8');
+            const passed = "${{ steps.run_check.outputs.status }}" === "pass";
+
+            let body = "## CEUR PRECHECK REPORT\n\n";
+            body += "```\n";
+            body += output;
+            body += "\n```\n\n";
+
+            if (passed) {
+              body += "**CEUR PRECHECK REPORT**\n\n";
+            } else {
+              body += "❌ **CEUR PRECHECK FAILED**\n\n";
+            }
+
+            body += "Each submission requires a new Issue. If you revise your paper, open a new Issue and upload the updated PDF.";
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+            if (!passed) {
+              core.setFailed("CEUR check failed");
+            }
+
+      - name: Close issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.update({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "closed"
+            });

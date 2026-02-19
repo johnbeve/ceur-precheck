@@ -1,0 +1,310 @@
+#!/bin/bash
+#
+# check-pdf-errors (CI version, CEUR specific)
+#
+
+# Define a function specifying which PDF files do NOT need to be tested
+isExcludedFile() {
+    local filename="$1"
+    case "$filename" in
+        *"reface"*".pdf" | *"rganization.pdf" | *"ponsors.pdf" | *"bstract"*".pdf" | *"ommittee"*".pdf" | *"matter"*".pdf" | *"ditorial.pdf")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+if [[ ! `ls *.pdf` ]]; then
+    echo "ERROR: No file with filetype *.pdf in this directory."
+    exit 1
+fi
+
+echo "check-pdf-errors V0.98 (2026-01-09) CC-BY-SA 4.0"
+
+# =====================================================
+# Test "readable"
+# =====================================================
+
+echo ""
+echo "(*) Readable/Selectable text inside PDF files"
+ABSTRACTWORD="found"
+for f in *.pdf
+do
+  echo -en "\rChecking $f               "
+  pdf2txt -m 2 "$f" | grep -E 'Abstract|Copyright' >/dev/null 2>&1
+  if [[ $? != 0 ]]; then
+     if ! isExcludedFile "$f"; then
+        ABSTRACTWORD="notfound"
+        echo -e "\rERROR: PDF file $f seems to have no readable text included but only binary data"
+     fi
+  fi
+done
+if [[ "$ABSTRACTWORD" == "notfound" ]] ; then
+  echo -e "\r ===> Make sure that paper PDFs have readable/selectable text..."
+  echo " "
+else
+  echo -e "\rok                                                                         "
+  echo " "
+fi
+
+
+# =====================================================
+# Test "copyright"
+# =====================================================
+
+echo ""
+echo "(*) CEUR-WS standard copyright phrase"
+CREATIVECOMMONS="found"
+for f in *.pdf
+do
+  echo -en "\rChecking $f                  "
+
+  if isExcludedFile "$f" ; then
+     continue
+  fi
+
+  pdf2txt -m 2 "$f" | \
+  grep -E 'Creative.*Commons.*License|Commons.*License.*Attribution' | \
+  grep -Ev '2022|2023' >/dev/null 2>&1
+
+  if [[ $? != 0 ]]; then
+     CREATIVECOMMONS="notfound"
+     echo -e "\rERROR: PDF file $f seems to lack the proper copyright clause or copyright year on page 1"
+  fi
+done
+
+if [[ $CREATIVECOMMONS == "notfound" ]] ; then
+  echo -e "\r ===> Make sure that paper PDFs have the correct copyright clause..."
+  echo " "
+else
+  echo -e "\rok                                                                        "
+  echo " "
+fi
+
+
+# =====================================================
+# Test "genai"
+# =====================================================
+
+echo ""
+echo "(*) Declaration on Generative AI"
+GENAIDECL="ok"
+
+for f in *.pdf
+do
+  echo -en "\rChecking $f             "
+
+  if isExcludedFile "$f" ; then
+     continue
+  fi
+
+  temp_file=$(mktemp)
+  pdf2txt "$f" > "$temp_file"
+
+  grep -i -F 'declaration' "$temp_file" | \
+  grep -E '[Gg]enerative\s+AI|[Gg]enAI' >/dev/null 2>&1
+
+  if [[ $? != 0 ]]; then
+     GENAIDECL="notok"
+     echo -e "\rERROR: PDF file $f seems to lack a section Declaration on Generative AI"
+     rm "$temp_file"
+     continue
+  fi
+
+  grep -E 'X-GPT-.|Gramby|X-AI-IMG' "$temp_file" >/dev/null 2>&1
+  if [[ $? == 0 ]]; then
+     GENAIDECL="notok"
+     echo -e "\rERROR: PDF file $f seems to mention non existing tools in its Declaration on Generative AI"
+  fi
+
+  rm "$temp_file"
+done
+
+if [[ $GENAIDECL == "notok" ]] ; then
+  echo -e "\r ===> Make sure that paper PDFs have a Generative AI Declaration conforming..."
+  echo " "
+else
+  echo -e "\rok                                                                   "
+  echo " "
+fi
+
+
+# =====================================================
+# Test "logo"
+# =====================================================
+
+echo ""
+echo "(*) Use of CEUR-WS.org logo..."
+
+CEURWSLINKFOUND="notfound"
+
+for f in *.pdf
+do
+  echo -en "\rChecking $f           "
+
+  if [ -f watermark-log.txt ] && grep -q "$f" watermark-log.txt; then
+    continue
+  fi
+
+  if isExcludedFile "$f" ; then
+     continue
+  fi
+
+  pdf2txt -m 2 "$f" | \
+  grep -E '(CEUR-WS.org)|CEUR Workshop Proceedings' >/dev/null 2>&1
+
+  if [[ $? == 0 ]]; then
+     CEURWSLINKFOUND="found"
+     echo -e "\rERROR: PDF file $f uses CEUR-WS.org or CEUR Workshop Proceedings before publication"
+  fi
+done
+
+if [[ $CEURWSLINKFOUND == "found" ]] ; then
+  echo -e "\r ===> Use the latest CEURART template..."
+  echo " "
+else
+  echo -e "\rok                                                                      "
+  echo " "
+fi
+
+
+# =====================================================
+# Test "libertinus"
+# =====================================================
+
+echo ""
+echo "(*) Libertinus font in paper PDFs"
+
+NONLIBERTINUSFOUND="no"
+
+for f in *.pdf
+do
+  echo -en "\rChecking $f                        "
+
+  if isExcludedFile "$f" ; then
+     continue
+  fi
+
+  if [[ -f check-libbyhead.py ]]; then
+    python3 check-libbyhead.py "$f"
+    exit_code=$?
+
+    if [ $exit_code -eq 1 ]; then
+        NONLIBERTINUSFOUND="found"
+        echo -e "\rERROR: PDF file $f seems not use Libertinus Sans font for headings"
+    elif [ $exit_code -eq 2 ]; then
+        NONLIBERTINUSFOUND="found"
+        echo -e "\rERROR: PDF file $f seems not use Libertinus Serif font for body text"
+    elif [ $exit_code -eq 3 ]; then
+        NONLIBERTINUSFOUND="found"
+        echo -e "\rERROR: PDF file $f seems not use Libertinus Serif font for body text and Libertinus Sans font for headings"
+    fi
+  fi
+
+  strings "$f" | grep FontName | grep -q -E 'Libertinus|CIDFont.F5'
+  if [[ $? != 0 ]]; then
+       pdffonts "$f" | grep -q -E 'Libertinus|CIDFont.F5'
+       if [[ $? != 0 ]]; then
+          NONLIBERTINUSFOUND="found"
+          echo -e "\rERROR: PDF file $f does not use Libertinus font family"
+       fi
+  fi
+done
+
+if [[ $NONLIBERTINUSFOUND == "found" ]] ; then
+  echo -e "\r ===> Make sure that paper PDFs use the Libertinus font family..."
+  echo " "
+else
+  echo -e "\rok                                                                                    "
+  echo " "
+fi
+
+
+# =====================================================
+# Test "duplicates"
+# =====================================================
+
+echo ""
+echo "(*) Duplicate PDF files"
+
+DUPPDFSFILES=$(find . -name '*.pdf' ! -empty -type f -exec md5sum {} + | sort | uniq -w32 -dD)
+
+if [ "$DUPPDFSFILES" != "" ]; then
+     echo "ERROR: Duplicate PDF files detected"
+     find . -name '*.pdf' ! -empty -type f -exec md5sum {} + | sort | uniq -w32 -dD
+     echo " "
+else
+  echo -e "\rok                                                                                      "
+  echo " "
+fi
+
+
+# =====================================================
+# Test "leftover"
+# =====================================================
+
+echo ""
+echo "(*) Leftover elements from CEURART..."
+
+NOLEFTOVER="yes"
+
+for f in *.pdf
+do
+  echo -en "\rChecking $f                "
+
+  pdf2txt -m 2 "$f" | \
+  grep -E '0000-0000-0000-0000|Woodstock.*22|0000-0002-0877-7063.*0000-0001-7116-9338.*0000-0002-9421-8566' >/dev/null 2>&1
+
+  if [[ $? == 0 ]]; then
+     NOLEFTOVER="no"
+     echo -e "\rERROR: PDF file $f seems to have leftover elements from the CEURART footer"
+  fi
+done
+
+if [[ $NOLEFTOVER == "no" ]] ; then
+  echo -e "\r ===> Make sure that paper PDFs have correct data in the footnote section..."
+  echo " "
+else
+  echo -e "\rok                                                                   "
+  echo " "
+fi
+
+
+# =====================================================
+# Test "columns"
+# =====================================================
+
+echo ""
+echo "(*) Check on one-column style"
+
+TWOCOLUMNFOUND="no"
+
+for f in *.pdf
+do
+  if isExcludedFile "$f" ; then
+     continue
+  fi
+
+  echo -en "\rChecking $f           "
+
+  if [[ -x ./check-columns ]]; then
+      ./check-columns "$f"
+      if [ $? -ne 0 ]; then
+        TWOCOLUMNFOUND="yes"
+        echo -e "\rERROR: PDF file $f seems to be in two column format"
+      fi
+  fi
+done
+
+if [[ "$TWOCOLUMNFOUND" == "yes" ]] ; then
+    echo -e "\r ===> Make sure that paper PDFs are in one-column CEURART format..."
+    echo " "
+else
+    echo -e "\rok                                                                         "
+    echo " "
+fi
+
+echo ""
+echo "=== CEUR CHECK COMPLETE ==="

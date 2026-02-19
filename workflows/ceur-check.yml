@@ -1,0 +1,74 @@
+name: CEUR PRECHECK
+
+on:
+  push:
+
+jobs:
+  ceur-precheck:
+    name: CEUR PRECHECK
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pdfminer \
+            poppler-utils \
+            perl
+
+      - name: Make scripts executable
+        run: |
+          chmod +x check-pdf-errors
+          if [ -f check-columns ]; then chmod +x check-columns; fi
+          if [ -f check-libbyhead.py ]; then chmod +x check-libbyhead.py; fi
+
+      - name: Run CEUR checks
+        id: run_checks
+        run: |
+          set +e
+
+          OUTPUT=$(./check-pdf-errors 2>&1)
+
+          # Print to raw logs
+          echo "$OUTPUT"
+
+          # Write clean report to Summary tab
+          echo "## CEUR PRECHECK REPORT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$OUTPUT" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          if echo "$OUTPUT" | grep -q "^ERROR:"; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "❌ **CEUR PRECHECK FAILED**" >> $GITHUB_STEP_SUMMARY
+              exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**CEUR PRECHECK REPORT END**" >> $GITHUB_STEP_SUMMARY
+
+      # -----------------------------------------
+      # Always delete uploaded PDFs
+      # -----------------------------------------
+      - name: Delete uploaded PDFs
+        if: always()
+        run: rm -f *.pdf
+
+      - name: Commit cleanup
+        if: always()
+        run: |
+          git config user.name "ceur-bot"
+          git config user.email "ceur-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "Auto-delete uploaded PDF after CEUR check" || echo "Nothing to commit"
+          git push

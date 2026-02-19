@@ -2,7 +2,7 @@ name: CEUR PRECHECK
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [opened]
 
 jobs:
   ceur-precheck:

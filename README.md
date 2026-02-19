@@ -31,14 +31,13 @@ After submitting the issue:
 
 - The CEUR validation workflow will run automatically.
 - This usually takes 1–2 minutes.
-
-You can click the **Actions** tab to monitor progress, or simply refresh the Issue page.
+- The page will update automatically. 
 
 ---
 
-## Step 3 — Interpret the Results
+## Step 3 — Interpreting the Report
 
-The following CEUR requirements are validated:
+The following CEUR requirements are validated using official [CEUR validation scripts](https://ceur-ws.org/ceurtools/):
 
 - Readable/selectable text (not scanned images)
 - Correct CEUR copyright clause and year
@@ -86,3 +85,4 @@ Repeat until all sections report:
 
 > ok
 
+You are encouraged to use the [CEUR latex template](https://www.overleaf.com/latex/templates/template-for-submissions-to-ceur-workshop-proceedings-ceur-ws-dot-org/wqyfdgftmcfw), which handles many formatting issues for you. 
